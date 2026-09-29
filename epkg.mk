@@ -22,6 +22,10 @@ epkg-compile:
 
 .PHONY: epkg-install
 epkg-install:
+	$(call epkg-install)
+
+.PHONY: epkg-install-dry
+epkg-install-dry:
 	$(call epkg-install,--init-directory "$(EPKG_DIR)")
 
 .PHONY: epkg-dist-clean
