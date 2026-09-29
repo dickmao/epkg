@@ -1,19 +1,21 @@
 EMACS ?= emacs
-EPKG_FILES ?= $(shell git ls-files *.el lisp/*.el)
+# Claude-originated Make tricks:
+# X = $(eval X := ...)$(X) computes X once on first use, then overwrites X with the result.
+# Targets not referencing EPKG_* (e.g., clean) thus never run emacs or git.
+EPKG_FILES ?= $(eval EPKG_FILES := $(shell git ls-files *.el lisp/*.el))$(EPKG_FILES)
 EPKG_EL ?= $(filter %.el,$(EPKG_FILES))
-EPKG_MAIN ?= ${firstword ${shell grep -l "(provide " $(EPKG_EL)}}
-EPKG_LOAD := $(patsubst %,-L %,$(sort $(patsubst %/,%,$(dir $(EPKG_EL)))))
-EPKG_EPKG := $(shell $(EMACS) --batch -l package -f package-initialize --eval "(princ (locate-library \"epkg\"))")
-EPKG_DIR := $(shell $(EMACS) --batch -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")" --eval "(princ (epkg-dir))")
-EPKG_BATCH := $(EMACS) --batch --init-directory "$(EPKG_DIR)" -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")"
-EPKG_NAME := $(shell $(EPKG_BATCH) --eval "(princ (epkg-name))")
+EPKG_MAIN ?= ${eval EPKG_MAIN := ${firstword ${shell grep -l "(provide " $(EPKG_EL)}}}${EPKG_MAIN}
+EPKG_EPKG = $(eval EPKG_EPKG := $(shell $(EMACS) --batch -l package -f package-initialize --eval "(princ (locate-library \"epkg\"))"))$(EPKG_EPKG)
+EPKG_DIR = $(eval EPKG_DIR := $(shell $(EMACS) --batch -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")" --eval "(princ (epkg-dir))"))$(EPKG_DIR)
+EPKG_BATCH = $(EMACS) --batch --init-directory "$(EPKG_DIR)" -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")"
+EPKG_NAME = $(eval EPKG_NAME := $(shell $(EPKG_BATCH) --eval "(princ (epkg-name))"))$(EPKG_NAME)
 
 .PHONY: epkg-compile
-epkg-compile: $(EPKG_FILES)
+epkg-compile:
 	$(EPKG_BATCH) \
 	  --eval "(setq byte-compile-error-on-warn t)" \
 	  -f package-initialize \
-	  $(EPKG_LOAD) \
+	  $(patsubst %,-L %,$(sort $(patsubst %/,%,$(dir $(EPKG_EL))))) \
 	  -f batch-byte-compile $(EPKG_EL); \
 	  (ret=$$? ; rm -f $(EPKG_EL:.el=.elc) && exit $$ret)
 
@@ -30,7 +32,7 @@ epkg-dist-clean:
 	)
 
 .PHONY: epkg-dist
-epkg-dist: epkg-dist-clean $(EPKG_FILES)
+epkg-dist: epkg-dist-clean
 	$(EPKG_BATCH) -f epkg-inception
 	( \
 	set -e; \
