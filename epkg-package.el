@@ -1,4 +1,4 @@
-;;; epkg-package.el --- because package.el sucks ass  -*- lexical-binding:t -*-
+;;; epkg-package.el --- buzz buzz -*- lexical-binding:t -*-
 
 (require 'package)
 (require 'project)
@@ -19,9 +19,11 @@
   "To get a -pkg.el file, you need to run `package-unpack'.
 To run `package-unpack', you need a -pkg.el."
   (let ((pkg-desc (epkg-package-desc))
-	(pkg-dir (expand-file-name (epkg-package-name) (epkg-package-where))))
+	(pkg-dir (expand-file-name (epkg-package-name)
+				   (epkg-package-where))))
     (ignore-errors (delete-directory pkg-dir t))
     (make-directory pkg-dir t)
-    (copy-file (expand-file-name "epkg.el" (epkg-package-where))
-	       (expand-file-name "epkg.el" pkg-dir))
+    (dolist (el (split-string "epkg.el"))
+      (copy-file (expand-file-name el (epkg-package-where))
+		 (expand-file-name el pkg-dir)))
     (package--make-autoloads-and-stuff pkg-desc pkg-dir)))

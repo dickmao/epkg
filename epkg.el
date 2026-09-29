@@ -22,14 +22,46 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+(require 'package)
+
 (defgroup epkg nil
   "Make-based package manager."
   :group 'applications)
 
-;;;###autoload
-(defun epkg ()
-  "Make-based package manager."
-  nil)
+(defvar epkg-main)
+
+(defsubst epkg-desc ()
+  (with-temp-buffer
+    (insert-file-contents epkg-main)
+    (package-buffer-info)))
+
+(defun epkg-dir ()
+  (expand-file-name (format "%s.%s" emacs-major-version emacs-minor-version) "epkg"))
+
+(defun epkg-name ()
+  (concat (symbol-name (package-desc-name (epkg-desc))) "-"
+	  (package-version-join (package-desc-version (epkg-desc)))))
+
+(defun epkg-inception ()
+  "To get a -pkg.el file, you need to run `package-unpack'.
+To run `package-unpack', you need a -pkg.el."
+  (let ((pkg-desc (epkg-desc))
+	(pkg-dir (expand-file-name (epkg-name) (epkg-dir))))
+    (ignore-errors (delete-directory pkg-dir t))
+    (make-directory pkg-dir t)
+    (copy-file epkg-main (expand-file-name (file-name-nondirectory epkg-main) pkg-dir))
+    (package--make-autoloads-and-stuff pkg-desc pkg-dir)))
+
+(defun epkg-copy-mk ()
+  "Copy bundled epkg.mk into `default-directory'."
+  (copy-file (expand-file-name "epkg.mk" (file-name-directory (locate-library "epkg")))
+	     (expand-file-name "epkg.mk") t))
 
 (provide 'epkg)
+
+;; Local Variables:
+;; no-byte-compile: t
+;; no-native-compile: t
+;; End:
+
 ;;; epkg.el ends here
