@@ -56,6 +56,27 @@ To run `package-unpack', you need a -pkg.el."
     (copy-file epkg-main (expand-file-name (file-name-nondirectory epkg-main) pkg-dir))
     (package--make-autoloads-and-stuff pkg-desc pkg-dir)))
 
+(defun epkg-requires ()
+  "Write Package-Requires of `epkg-main' to epkg/requires if changed."
+  (let ((reqs (package-desc-reqs (epkg-desc)))
+	(file (expand-file-name "epkg/requires")))
+    (when (or (not (file-exists-p file))
+	      (not (equal reqs (with-temp-buffer
+				 (insert-file-contents file)
+				 (ignore-errors (read (current-buffer)))))))
+      (make-directory (file-name-directory file) t)
+      (with-temp-file file
+	(prin1 reqs (current-buffer))))))
+
+(defun epkg-requires-satisfied-p ()
+  "Non-nil if packages under `epkg-dir' satisfy Package-Requires of `epkg-main'."
+  (let ((package-user-dir (expand-file-name "elpa" (epkg-dir)))
+	(package-directory-list nil)
+	package-alist)
+    (package-load-all-descriptors)
+    (seq-every-p (lambda (req) (package-installed-p (car req) (cadr req)))
+		 (package-desc-reqs (epkg-desc)))))
+
 (defun epkg-copy-mk ()
   "Copy bundled epkg.mk into `default-directory'."
   (copy-file (expand-file-name "epkg.mk" (file-name-directory (locate-library "epkg")))

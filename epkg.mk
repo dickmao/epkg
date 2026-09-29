@@ -5,6 +5,8 @@ EMACS ?= emacs
 EPKG_FILES ?= $(eval EPKG_FILES := $(shell git ls-files *.el lisp/*.el))$(EPKG_FILES)
 EPKG_EL ?= $(filter %.el,$(EPKG_FILES))
 EPKG_MAIN ?= ${eval EPKG_MAIN := ${firstword ${shell grep -l "(provide " $(EPKG_EL)}}}${EPKG_MAIN}
+EPKG_TEST_EL ?= $(eval EPKG_TEST_EL := $(shell git ls-files test*/*.el))$(EPKG_TEST_EL)
+
 EPKG_EPKG = $(eval EPKG_EPKG := $(shell $(EMACS) -batch -l package -f package-initialize --eval "(princ (locate-library \"epkg\"))"))$(EPKG_EPKG)
 EPKG_DIR = $(eval EPKG_DIR := $(shell $(EMACS) -batch -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")" --eval "(princ (epkg-dir))"))$(EPKG_DIR)
 EPKG_BATCH = $(EMACS) -batch --init-directory "$(EPKG_DIR)" -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")"
@@ -24,8 +26,8 @@ epkg-compile:
 epkg-install:
 	$(call epkg-install)
 
-.PHONY: epkg-install-dry
-epkg-install-dry:
+.PHONY: epkg-install-local
+epkg-install-local:
 	$(call epkg-install,--init-directory "$(EPKG_DIR)")
 
 .PHONY: epkg-dist-clean
@@ -44,6 +46,25 @@ epkg-dist: epkg-dist-clean
 	rsync -R $(EPKG_FILES) $(EPKG_DIR)/$(EPKG_NAME_VERSION) && \
 	tar -C $(EPKG_DIR) -cf $(EPKG_DIR)/$(EPKG_NAME_VERSION).tar $(EPKG_NAME_VERSION); \
 	)
+
+epkg/requires: FORCE
+	$(EPKG_BATCH) -f epkg-requires
+
+FORCE:
+
+.PHONY: epkg-requires-satisfied
+epkg-requires-satisfied:
+	$(EPKG_BATCH) --eval "(kill-emacs (if (epkg-requires-satisfied-p) 0 1))" \
+	  || $(MAKE) -f $(firstword $(MAKEFILE_LIST)) epkg-install-local
+
+# -L of EPKG_EL *after* package-initialize shadows the EPKG_DIR
+# installation, thus testing the right thing (the sort removes dups)
+.PHONY: epkg-test
+epkg-test: epkg/requires epkg-requires-satisfied
+	$(EMACS) -batch --init-directory "$(EPKG_DIR)" -f package-initialize \
+	  $(patsubst %,-L %,$(sort $(patsubst %/,%,$(dir $(EPKG_EL) $(EPKG_TEST_EL))))) \
+	  $(patsubst %.el,-l %,$(notdir $(EPKG_TEST_EL))) \
+	  -f ert-run-tests-batch-and-exit
 
 define epkg-install
 	$(MAKE) -f $(firstword $(MAKEFILE_LIST)) epkg-dist
