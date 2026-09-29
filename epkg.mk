@@ -1,5 +1,5 @@
 EMACS ?= emacs
-EPKG_FILES ?= $(shell git ls-files *.el lisp/*.el test/*.el)
+EPKG_FILES ?= $(shell git ls-files *.el lisp/*.el)
 EPKG_EL ?= $(filter %.el,$(EPKG_FILES))
 EPKG_MAIN ?= ${firstword ${shell grep -l "(provide " $(EPKG_EL)}}
 EPKG_LOAD := $(patsubst %,-L %,$(sort $(patsubst %/,%,$(dir $(EPKG_EL)))))
@@ -9,7 +9,7 @@ EPKG_BATCH := $(EMACS) --batch --init-directory "$(EPKG_DIR)" -L "$(dir $(EPKG_E
 EPKG_NAME := $(shell $(EPKG_BATCH) --eval "(princ (epkg-name))")
 
 .PHONY: epkg-compile
-epkg-compile:
+epkg-compile: $(EPKG_FILES)
 	$(EPKG_BATCH) \
 	  --eval "(setq byte-compile-error-on-warn t)" \
 	  -f package-initialize \
@@ -30,7 +30,7 @@ epkg-dist-clean:
 	)
 
 .PHONY: epkg-dist
-epkg-dist: epkg-dist-clean
+epkg-dist: epkg-dist-clean $(EPKG_FILES)
 	$(EPKG_BATCH) -f epkg-inception
 	( \
 	set -e; \
