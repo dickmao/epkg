@@ -5,10 +5,11 @@ EMACS ?= emacs
 EPKG_FILES ?= $(eval EPKG_FILES := $(shell git ls-files *.el lisp/*.el))$(EPKG_FILES)
 EPKG_EL ?= $(filter %.el,$(EPKG_FILES))
 EPKG_MAIN ?= ${eval EPKG_MAIN := ${firstword ${shell grep -l "(provide " $(EPKG_EL)}}}${EPKG_MAIN}
-EPKG_EPKG = $(eval EPKG_EPKG := $(shell $(EMACS) --batch -l package -f package-initialize --eval "(princ (locate-library \"epkg\"))"))$(EPKG_EPKG)
-EPKG_DIR = $(eval EPKG_DIR := $(shell $(EMACS) --batch -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")" --eval "(princ (epkg-dir))"))$(EPKG_DIR)
-EPKG_BATCH = $(EMACS) --batch --init-directory "$(EPKG_DIR)" -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")"
+EPKG_EPKG = $(eval EPKG_EPKG := $(shell $(EMACS) -batch -l package -f package-initialize --eval "(princ (locate-library \"epkg\"))"))$(EPKG_EPKG)
+EPKG_DIR = $(eval EPKG_DIR := $(shell $(EMACS) -batch -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")" --eval "(princ (epkg-dir))"))$(EPKG_DIR)
+EPKG_BATCH = $(EMACS) -batch --init-directory "$(EPKG_DIR)" -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")"
 EPKG_NAME = $(eval EPKG_NAME := $(shell $(EPKG_BATCH) --eval "(princ (epkg-name))"))$(EPKG_NAME)
+EPKG_NAME_VERSION = $(eval EPKG_NAME_VERSION := $(shell $(EPKG_BATCH) --eval "(princ (epkg-name-version))"))$(EPKG_NAME_VERSION)
 
 .PHONY: epkg-compile
 epkg-compile:
@@ -27,8 +28,8 @@ epkg-install:
 epkg-dist-clean:
 	( \
 	set -e; \
-	rm -rf $(EPKG_DIR)/$(EPKG_NAME); \
-	rm -rf $(EPKG_DIR)/$(EPKG_NAME).tar; \
+	rm -rf $(EPKG_DIR)/$(EPKG_NAME_VERSION); \
+	rm -rf $(EPKG_DIR)/$(EPKG_NAME_VERSION).tar; \
 	)
 
 .PHONY: epkg-dist
@@ -36,19 +37,18 @@ epkg-dist: epkg-dist-clean
 	$(EPKG_BATCH) -f epkg-inception
 	( \
 	set -e; \
-	rsync -R $(EPKG_FILES) $(EPKG_DIR)/$(EPKG_NAME) && \
-	tar -C $(EPKG_DIR) -cf $(EPKG_DIR)/$(EPKG_NAME).tar $(EPKG_NAME); \
+	rsync -R $(EPKG_FILES) $(EPKG_DIR)/$(EPKG_NAME_VERSION) && \
+	tar -C $(EPKG_DIR) -cf $(EPKG_DIR)/$(EPKG_NAME_VERSION).tar $(EPKG_NAME_VERSION); \
 	)
 
 define epkg-install
 	$(MAKE) -f $(firstword $(MAKEFILE_LIST)) epkg-dist
 	( \
 	set -e; \
-	$(EMACS) --batch $(1) -l package \
+	$(EMACS) -batch $(1) -l package \
 	  -f package-initialize \
 	  -f package-refresh-contents \
-	  --eval "(ignore-errors (apply (function package-delete) (alist-get (quote $(EPKG_NAME) package-alist))))" \
-	  --eval "(package-install-file \"$(EPKG_DIR)/$(EPKG_NAME).tar\")"; \
+	  --eval "(ignore-errors (apply (function package-delete) (alist-get (quote $(EPKG_NAME)) package-alist)))" \
+	  --eval "(package-install-file \"$(EPKG_DIR)/$(EPKG_NAME_VERSION).tar\")"; \
 	)
-	$(MAKE) -f $(firstword $(MAKEFILE_LIST)) epkg-dist-clean
 endef

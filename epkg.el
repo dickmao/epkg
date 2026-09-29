@@ -30,7 +30,7 @@
 
 (defvar epkg-main)
 
-(defsubst epkg-desc ()
+(defun epkg-desc ()
   (with-temp-buffer
     (insert-file-contents epkg-main)
     (package-buffer-info)))
@@ -39,14 +39,18 @@
   (expand-file-name (format "%s.%s" emacs-major-version emacs-minor-version) "epkg"))
 
 (defun epkg-name ()
-  (concat (symbol-name (package-desc-name (epkg-desc))) "-"
+  (symbol-name (package-desc-name (epkg-desc))))
+
+(defun epkg-name-version ()
+  "What package.el calls the full name."
+  (concat (epkg-name) "-"
 	  (package-version-join (package-desc-version (epkg-desc)))))
 
 (defun epkg-inception ()
   "To get a -pkg.el file, you need to run `package-unpack'.
 To run `package-unpack', you need a -pkg.el."
   (let ((pkg-desc (epkg-desc))
-	(pkg-dir (expand-file-name (epkg-name) (epkg-dir))))
+	(pkg-dir (expand-file-name (epkg-name-version) (epkg-dir))))
     (ignore-errors (delete-directory pkg-dir t))
     (make-directory pkg-dir t)
     (copy-file epkg-main (expand-file-name (file-name-nondirectory epkg-main) pkg-dir))
