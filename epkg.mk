@@ -30,8 +30,8 @@ epkg-compile: epkg-old-requires epkg-requires
 epkg-install: epkg-dist
 	$(EMACS) -batch $(EPKG_INSTALL) -l package \
 	  -f package-initialize \
-	  -f package-refresh-contents \
 	  --eval "(ignore-errors (apply (function package-delete) (alist-get (quote $(EPKG_NAME)) package-alist)))" \
+	  -f package-refresh-contents \
 	  --eval "(package-install-file \"$(EPKG_DIR)/$(EPKG_NAME_VERSION).tar\")"
 
 .PHONY: epkg-dist-clean
