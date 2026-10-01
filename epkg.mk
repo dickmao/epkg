@@ -7,7 +7,7 @@ epkg-lazy = $(eval $(1) := $(2))$($(1))
 
 EPKG_FILES ?= $(call epkg-lazy,EPKG_FILES,$(shell git ls-files *.el lisp/*.el))
 EPKG_EL ?= $(filter %.el,$(EPKG_FILES))
-EPKG_MAIN ?= $(call epkg-lazy,EPKG_MAIN,$(firstword $(shell grep -l "(provide " $(EPKG_EL))))
+EPKG_MAIN ?= ${call epkg-lazy,EPKG_MAIN,${firstword ${shell grep -l "(provide " $(EPKG_EL)}}}
 EPKG_TEST_EL ?= $(call epkg-lazy,EPKG_TEST_EL,$(shell git ls-files test*/*.el))
 
 EPKG_EPKG = $(call epkg-lazy,EPKG_EPKG,$(shell $(EMACS) -batch -l package -f package-initialize --eval "(princ (locate-library \"epkg\"))"))
@@ -44,18 +44,15 @@ epkg-dist: epkg-dist-clean
 	rsync -R $(EPKG_FILES) $(EPKG_DIR)/$(EPKG_NAME_VERSION)
 	tar -C $(EPKG_DIR) -cf $(EPKG_DIR)/$(EPKG_NAME_VERSION).tar $(EPKG_NAME_VERSION)
 
-epkg.lock: epkg-requires
-	$(EPKG_BATCH) --eval "(epkg-sync $(patsubst %,\"%\",$(EPKG_EL)))"
-	git add $@
-
 .PHONY: epkg-get
 epkg-get:
+	$(if $(and $(PKG),$(REV)),,$(error Usage: make epkg-get PKG=pkg REV=rev))
 	$(EPKG_BATCH) --eval "(epkg-get '$(PKG) \"$(REV)\")"
-	$(MAKE) epkg.lock
 
 .PHONY: epkg-requires
 epkg-requires:
-	$(EPKG_BATCH) --eval "(epkg-requires $(patsubst %,\"%\",$(EPKG_EL)))"
+	$(EPKG_BATCH) --eval "(epkg-sync $(patsubst %,\"%\",$(EPKG_EL)))"
+	git add epkg.lock
 
 .PHONY: epkg-old-requires
 epkg-old-requires:

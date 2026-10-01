@@ -208,12 +208,18 @@ clone's dependencies, so that we don't need to recursively take
 						    candidates))))
 	  (unless (epkg--git dir "checkout" "--quiet" "--detach" best)
 	    (error "epkg-sync: git checkout %s in %s failed" best dir))
+	  (with-temp-buffer
+	    (unless (zerop (call-process
+			    "make" nil t nil "-C" dir "epkg-install"
+			    (format "EPKG_INSTALL=--init-directory \"%s\"" (epkg-dir))))
+	      (error "epkg-sync: make epkg-install in %s failed\n%s" dir (buffer-string))))
 	  (list pkg :url url :sha1 best)))
       urls))
+
     ))
 
 (defun epkg-get (pkg rev)
-  "Fetch PKG and lock it at REV, the remote default tip if REV is empty.
+  "Fetch PKG and lock it at REV.
 A branch REV means the remote's branch."
   (let* ((lock (epkg--lock))
 	 (dir (expand-file-name (symbol-name pkg) "epkg"))
@@ -221,15 +227,14 @@ A branch REV means the remote's branch."
 		  (epkg--git dir "remote" "get-url" "origin")
 		  (error "epkg-get: no clone of %s" pkg)))
 	 (remote (concat "refs/remotes/origin/" rev)))
-    (when (or (not (epkg--git dir "fetch" "--quiet" "--tags" "origin"))
-	      (not (epkg--git dir "remote" "set-head" "origin" "--auto")))
+    (unless (epkg--git dir "fetch" "--quiet" "--tags" "origin")
       (error "epkg-get: git fetch in %s failed" dir))
-    (setf (alist-get pkg lock)
-	  (list :url url
-		:sha1 (epkg--sha1 dir (cond ((string-empty-p rev) "origin/HEAD")
-					      ((epkg--git dir "rev-parse" "--verify" "--quiet" remote)
-					       remote)
-					      (t rev)))))
+    (let ((sha1 (epkg--sha1 dir (if (epkg--git dir "rev-parse" "--verify" "--quiet" remote)
+				    remote
+				  rev))))
+      (unless (epkg--git dir "checkout" "--quiet" "--detach" sha1)
+	(error "epkg-get: git checkout %s in %s failed" sha1 dir))
+      (setf (alist-get pkg lock) (list :url url :sha1 sha1)))
     (epkg--write-lock lock)))
 
 (defun epkg-old-requires ()
