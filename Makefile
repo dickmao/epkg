@@ -9,6 +9,7 @@ TESTSRC := $(shell git ls-files test*.el)
 compile:
 	$(EMACS) -batch \
 	  --eval "(setq byte-compile-error-on-warn t)" \
+	  --eval "(push 'no-byte-compile ignored-local-variables)" \
 	  -f batch-byte-compile $(ELSRC) $(TESTSRC); \
 	  (ret=$$? ; rm -f $(ELSRC:.el=.elc) $(TESTSRC:.el=.elc) && exit $$ret)
 

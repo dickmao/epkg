@@ -14,7 +14,7 @@ EPKG_NAME = $(eval EPKG_NAME := $(shell $(EPKG_BATCH) --eval "(princ (epkg-name)
 EPKG_NAME_VERSION = $(eval EPKG_NAME_VERSION := $(shell $(EPKG_BATCH) --eval "(princ (epkg-name-version))"))$(EPKG_NAME_VERSION)
 
 .PHONY: epkg-compile
-epkg-compile:
+epkg-compile: epkg-old-requires epkg-requires
 	$(EPKG_BATCH) \
 	  --eval "(setq byte-compile-error-on-warn t)" \
 	  -f package-initialize \
@@ -23,11 +23,11 @@ epkg-compile:
 	  (ret=$$? ; rm -f $(EPKG_EL:.el=.elc) && exit $$ret)
 
 .PHONY: epkg-install
-epkg-install:
+epkg-install: epkg-old-requires epkg-requires
 	$(call epkg-install)
 
 .PHONY: epkg-install-local
-epkg-install-local:
+epkg-install-local: epkg-old-requires epkg-requires
 	$(call epkg-install,--init-directory "$(EPKG_DIR)")
 
 .PHONY: epkg-dist-clean
@@ -47,27 +47,36 @@ epkg-dist: epkg-dist-clean
 	tar -C $(EPKG_DIR) -cf $(EPKG_DIR)/$(EPKG_NAME_VERSION).tar $(EPKG_NAME_VERSION); \
 	)
 
-epkg/requires: FORCE
-	$(EPKG_BATCH) -f epkg-requires
+epkg/lock: epkg-requires
+	$(EPKG_BATCH) --eval "(epkg-sync $(patsubst %,\"%\",$(EPKG_EL)))"
 
 FORCE:
 
-.PHONY: epkg-requires-satisfied
-epkg-requires-satisfied:
-	$(EPKG_BATCH) --eval "(kill-emacs (if (epkg-requires-satisfied-p) 0 1))" \
-	  || $(MAKE) -f $(firstword $(MAKEFILE_LIST)) epkg-install-local
+.PHONY: epkg-get
+epkg-get:
+	$(EPKG_BATCH) --eval "(epkg-get '$(PKG) \"$(REV)\")"
+	$(MAKE) epkg/lock
+
+.PHONY: epkg-requires
+epkg-requires:
+	$(EPKG_BATCH) --eval "(epkg-requires $(patsubst %,\"%\",$(EPKG_EL)))"
+
+.PHONY: epkg-old-requires
+epkg-old-requires:
+	$(EPKG_BATCH) --eval "(kill-emacs (if (epkg-old-requires) 0 1))" \
+	  || $(MAKE) epkg-install-local
 
 # -L of EPKG_EL *after* package-initialize shadows the EPKG_DIR
 # installation, thus testing the right thing (the sort removes dups)
 .PHONY: epkg-test
-epkg-test: epkg/requires epkg-requires-satisfied
+epkg-test: epkg/old-requires epkg-old-requires
 	$(EMACS) -batch --init-directory "$(EPKG_DIR)" -f package-initialize \
 	  $(patsubst %,-L %,$(sort $(patsubst %/,%,$(dir $(EPKG_EL) $(EPKG_TEST_EL))))) \
 	  $(patsubst %.el,-l %,$(notdir $(EPKG_TEST_EL))) \
 	  -f ert-run-tests-batch-and-exit
 
 define epkg-install
-	$(MAKE) -f $(firstword $(MAKEFILE_LIST)) epkg-dist
+	$(MAKE) epkg-dist
 	( \
 	set -e; \
 	$(EMACS) -batch $(1) -l package \
