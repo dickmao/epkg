@@ -31,7 +31,7 @@ epkg-install: epkg-dist
 	$(EMACS) -batch $(EPKG_INSTALL) -l package \
 	  -f package-initialize \
 	  --eval "(ignore-errors (apply (function package-delete) (alist-get (quote $(EPKG_NAME)) package-alist)))" \
-	  -f package-refresh-contents \
+	  --eval "(package-refresh-contents nil)" \
 	  --eval "(package-install-file \"$(EPKG_DIR)/$(EPKG_NAME_VERSION).tar\")"
 
 .PHONY: epkg-dist-clean
