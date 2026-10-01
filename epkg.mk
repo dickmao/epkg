@@ -44,13 +44,14 @@ epkg-dist: epkg-dist-clean
 	rsync -R $(EPKG_FILES) $(EPKG_DIR)/$(EPKG_NAME_VERSION)
 	tar -C $(EPKG_DIR) -cf $(EPKG_DIR)/$(EPKG_NAME_VERSION).tar $(EPKG_NAME_VERSION)
 
-epkg/lock: epkg-requires
+epkg.lock: epkg-requires
 	$(EPKG_BATCH) --eval "(epkg-sync $(patsubst %,\"%\",$(EPKG_EL)))"
+	git add $@
 
 .PHONY: epkg-get
 epkg-get:
 	$(EPKG_BATCH) --eval "(epkg-get '$(PKG) \"$(REV)\")"
-	$(MAKE) epkg/lock
+	$(MAKE) epkg.lock
 
 .PHONY: epkg-requires
 epkg-requires:

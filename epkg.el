@@ -99,34 +99,29 @@ To run `package-unpack', you need a -pkg.el."
       (insert-file-contents file)
       (read (current-buffer)))))
 
-(defun epkg--pkg-dir (pkg)
-  (expand-file-name (symbol-name pkg) "epkg"))
-
 (defun epkg--lock ()
-  "Extant epkg/lock."
-  (epkg--read (expand-file-name "lock" "epkg")))
+  "Extant epkg.lock."
+  (epkg--read "epkg.lock"))
 
 (defun epkg--write-lock (lock)
-  (make-directory "epkg" t)
-  (with-temp-file (expand-file-name "lock" "epkg")
+  (with-temp-file "epkg.lock"
     (pp (sort lock (lambda (a b) (string< (car a) (car b))))
 	(current-buffer))))
 
-(defun epkg--clone (pkg url)
+(defun epkg--clone-require (pkg url)
   "Clone URL to epkg/PKG unless present from URL."
-  (let ((dir (epkg--pkg-dir pkg)))
+  (let ((dir (expand-file-name (symbol-name pkg) "epkg")))
     (when (and (file-directory-p dir)
 	       (not (equal url (epkg--git dir "remote" "get-url" "origin"))))
-      (unless (and (equal "" (epkg--git dir "status" "--porcelain"))
-		   (equal "" (epkg--git dir "rev-list" "HEAD" "--branches" "--not" "--remotes")))
-	(error "epkg: %s has local work, cannot reclone from %s" dir url))
       (delete-directory dir t))
     (unless (file-directory-p dir)
-      (unless (zerop (call-process "git" nil nil nil "clone" "--quiet" url dir))
+      (when (or (not (zerop (call-process "git" nil nil nil "clone" "--quiet" url dir)))
+		(not (epkg--git dir "checkout" "--quiet" "--detach")))
 	(error "epkg: git clone %s failed" url)))
     dir))
 
-(defun epkg--commit (dir rev)
+(defun epkg--sha1 (dir rev)
+  ;; ^{commit} resolves an annotated tag to its commit, not the tag object.
   (or (epkg--git dir "rev-parse" "--verify" "--quiet" (concat rev "^{commit}"))
       (error "epkg: %s lacks %s" dir rev)))
 
@@ -143,17 +138,25 @@ commit, else the remote's default branch tip."
 	    (while t
 	      (setq reqs (epkg--collect-requires (read (current-buffer)) reqs)))
 	  (end-of-file))))
-    (mapcar (lambda (req)
-	      (let* ((url (if (url-type (url-generic-parse-url (cdr req)))
-			      (cdr req)
-			    (concat "https://" (cdr req))))
-		     (dir (epkg--clone (car req) url))
-		     (locked (alist-get (car req) lock)))
-		(list (car req) :url url
-		      :sha1 (epkg--commit dir (if (equal url (plist-get locked :url))
-						  (plist-get locked :sha1)
-						"refs/remotes/origin/HEAD")))))
-	    reqs)))
+    ;; mapc returns the mapcar
+    (mapc (lambda (entry)
+	    (let ((dir (expand-file-name (symbol-name (car entry)) "epkg"))
+		  (sha1 (plist-get (cdr entry) :sha1)))
+	      (unless (epkg--git dir "checkout" "--quiet" "--detach" sha1)
+		(error "epkg-requires: git checkout %s in %s failed" sha1 dir))))
+	  (mapcar (lambda (req)
+		    (let* ((url (if (url-type (url-generic-parse-url (cdr req)))
+				    (cdr req)
+				  (concat "https://" (cdr req))))
+			   (dir (epkg--clone-require (car req) url))
+			   (locked (alist-get (car req) lock)))
+		      ;; Detached HEAD may be stale; origin/HEAD is unequivocal.
+		      (list (car req)
+			    :url url
+			    :sha1 (epkg--sha1 dir (if (equal url (plist-get locked :url))
+						      (plist-get locked :sha1)
+						    "origin/HEAD")))))
+		  reqs))))
 
 (defun epkg--latest (pkg dir sha1s)
   (let ((best (car sha1s)))
@@ -163,58 +166,67 @@ commit, else the remote's default branch tip."
 	    ((epkg--git dir "merge-base" "--is-ancestor" sha1 best))
 	    (t (error "epkg-sync: %s %s and %s diverge" pkg best sha1))))))
 
-(defun epkg-sync (&rest files)
-  "Merge all epkg/clone/epkg/lock to epkg/lock.
-Checkout each clone accordingly."
+(defun epkg-sync (&rest elsrc)
+  "Merge all epkg/clone/epkg.lock to epkg.lock.
+Assume epkg/clone/epkg.lock describes a transitive closure for all of
+clone's dependencies, so that we don't need to recursively take
+`epkg-requires'."
   (let* ((lock (epkg--lock))
-	 (direct (apply #'epkg-requires files))
-	 (entries direct)
-	 merged)
-    (dolist (entry direct)
-      (let ((dir (epkg--pkg-dir (car entry)))
-	    (sha1 (plist-get (cdr entry) :sha1)))
-	(unless (epkg--git dir "checkout" "--quiet" "--detach" sha1)
-	  (error "epkg-sync: git checkout %s in %s failed" sha1 dir))
-	(setq entries (append entries (epkg--read (expand-file-name "epkg/lock" dir))))))
-    (dolist (entry entries)
-      (let ((url (plist-get (cdr entry) :url))
-	    (sha1 (plist-get (cdr entry) :sha1))
-	    (prev (assq (car entry) merged)))
-	(cond ((not prev) (push (list (car entry) url sha1) merged))
-	      ((not (equal url (cadr prev)))
-	       (error "epkg-sync: %s is both %s and %s" (car entry) (cadr prev) url))
-	      (t (cl-pushnew sha1 (cddr prev) :test #'equal)))))
+	 (requires* (apply #'epkg-requires elsrc))
+	 (requires requires*)
+	 urls sha1s)
+    ;; Cumulate each dependency's epkg.lock
+    (dolist (entry requires*)
+      (let ((more (epkg--read (expand-file-name
+			       "epkg.lock"
+			       (expand-file-name (symbol-name (car entry)) "epkg")))))
+	(setq requires (append requires more))))
+    (dolist (entry requires)
+      ;; (PKG :url URL :sha1 SHA1)
+      (let ((pkg (car entry))
+	    (url (plist-get (cdr entry) :url)))
+	(when-let ((prev (alist-get (car entry) urls)))
+	  (unless (equal url prev)
+	    (error "epkg-sync: %s is both %s and %s" pkg prev url)))
+	(setf (alist-get pkg urls) url)
+	(cl-pushnew (plist-get (cdr entry) :sha1) (alist-get pkg sha1s) :test #'equal)))
     (epkg--write-lock
      (mapcar
-      (lambda (m)
-	(let ((dir (epkg--clone (car m) (cadr m)))
-	      (locked (alist-get (car m) lock))
-	      best)
-	  (when (equal (cadr m) (plist-get locked :url))
-	    (cl-pushnew (plist-get locked :sha1) (cddr m) :test #'equal))
-	  (setq best (epkg--latest (car m) dir (delete-dups
-						(mapcar (lambda (sha1) (epkg--commit dir sha1))
-							(cddr m)))))
+      (lambda (u)
+	(let* ((pkg (car u))
+	       (url (cdr u))
+	       (dir (epkg--clone-require pkg url))
+	       (locked (alist-get pkg lock))
+	       (candidates (alist-get pkg sha1s))
+	       best)
+	  ;; URLS won't reflect epkg.lock since we're regenerating it
+	  ;; from scratch, but heed its lower bound.
+	  (when (equal url (plist-get locked :url))
+	    (cl-pushnew (plist-get locked :sha1) candidates :test #'equal))
+	  (setq best (epkg--latest pkg dir (delete-dups
+					    (mapcar (lambda (sha1) (epkg--sha1 dir sha1))
+						    candidates))))
 	  (unless (epkg--git dir "checkout" "--quiet" "--detach" best)
 	    (error "epkg-sync: git checkout %s in %s failed" best dir))
-	  (list (car m) :url (cadr m) :sha1 best)))
-      merged))))
+	  (list pkg :url url :sha1 best)))
+      urls))
+    ))
 
 (defun epkg-get (pkg rev)
   "Fetch PKG and lock it at REV, the remote default tip if REV is empty.
 A branch REV means the remote's branch."
   (let* ((lock (epkg--lock))
-	 (dir (epkg--pkg-dir pkg))
+	 (dir (expand-file-name (symbol-name pkg) "epkg"))
 	 (url (or (plist-get (alist-get pkg lock) :url)
 		  (epkg--git dir "remote" "get-url" "origin")
 		  (error "epkg-get: no clone of %s" pkg)))
 	 (remote (concat "refs/remotes/origin/" rev)))
-    (unless (and (epkg--git dir "fetch" "--quiet" "--tags" "origin")
-		 (epkg--git dir "remote" "set-head" "origin" "--auto"))
+    (when (or (not (epkg--git dir "fetch" "--quiet" "--tags" "origin"))
+	      (not (epkg--git dir "remote" "set-head" "origin" "--auto")))
       (error "epkg-get: git fetch in %s failed" dir))
     (setf (alist-get pkg lock)
 	  (list :url url
-		:sha1 (epkg--commit dir (cond ((string-empty-p rev) "refs/remotes/origin/HEAD")
+		:sha1 (epkg--sha1 dir (cond ((string-empty-p rev) "origin/HEAD")
 					      ((epkg--git dir "rev-parse" "--verify" "--quiet" remote)
 					       remote)
 					      (t rev)))))
