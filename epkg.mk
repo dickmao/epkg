@@ -48,6 +48,7 @@ epkg-dist: epkg-dist-clean
 epkg-get:
 	$(if $(and $(PKG),$(REV)),,$(error Usage: make epkg-get PKG=pkg REV=rev))
 	$(EPKG_BATCH) --eval "(epkg-get '$(PKG) \"$(REV)\")"
+	$(MAKE) epkg-requires
 
 .PHONY: epkg-requires
 epkg-requires:
