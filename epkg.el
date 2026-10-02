@@ -210,7 +210,7 @@ clone's dependencies, so that we don't need to recursively take
 	    (error "epkg-sync: git checkout %s in %s failed" best dir))
 	  (with-temp-buffer
 	    (unless (zerop (call-process
-			    "make" nil t nil "-C" dir "epkg-install"
+			    "make" nil t nil "-C" dir "install"
 			    (format "EPKG_INSTALL=--init-directory \"%s\"" (epkg-dir))))
 	      (error "epkg-sync: make epkg-install in %s failed\n%s" dir (buffer-string))))
 	  (list pkg :url url :sha1 best)))
