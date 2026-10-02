@@ -185,7 +185,7 @@ clone's dependencies, so that we don't need to recursively take
       ;; (PKG :url URL :sha1 SHA1)
       (let ((pkg (car entry))
 	    (url (plist-get (cdr entry) :url)))
-	(when-let ((prev (alist-get (car entry) urls)))
+	(when-let* ((prev (alist-get (car entry) urls)))
 	  (unless (equal url prev)
 	    (error "epkg-sync: %s is both %s and %s" pkg prev url)))
 	(setf (alist-get pkg urls) url)
