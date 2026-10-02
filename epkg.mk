@@ -63,7 +63,7 @@ epkg-old-requires:
 # -L of EPKG_EL *after* package-initialize shadows the EPKG_DIR
 # installation, thus testing the right thing (the sort removes dups)
 .PHONY: epkg-test
-epkg-test: epkg/old-requires epkg-old-requires
+epkg-test: epkg-old-requires epkg-requires
 	$(EPKG_BATCH) -f package-initialize \
 	  $(patsubst %,-L %,$(sort $(patsubst %/,%,$(dir $(EPKG_EL) $(EPKG_TEST_EL))))) \
 	  $(patsubst %.el,-l %,$(notdir $(EPKG_TEST_EL))) \
