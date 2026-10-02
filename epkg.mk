@@ -64,7 +64,7 @@ epkg-old-requires:
 # installation, thus testing the right thing (the sort removes dups)
 .PHONY: epkg-test
 epkg-test: epkg/old-requires epkg-old-requires
-	$(EMACS) -batch --init-directory "$(EPKG_DIR)" -f package-initialize \
+	$(EPKG_BATCH) -f package-initialize \
 	  $(patsubst %,-L %,$(sort $(patsubst %/,%,$(dir $(EPKG_EL) $(EPKG_TEST_EL))))) \
 	  $(patsubst %.el,-l %,$(notdir $(EPKG_TEST_EL))) \
 	  -f ert-run-tests-batch-and-exit
