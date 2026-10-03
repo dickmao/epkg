@@ -255,11 +255,12 @@ clone's dependencies, so that we don't need to recursively take
 			       (progn (epkg--git dir "fetch" "--quiet" "--tags" "origin")
 				      (epkg--latest pkg dir (list installed best))))))
 	    (with-temp-buffer
-	      (unless (zerop (call-process
-			      "make" nil t nil "-C" dir "install" "-o" "epkg-requires"
-			      (format "EPKG_INSTALL='--init-directory=%s'" user-emacs-directory)))
-		(error "epkg-requires: make epkg-install in %s failed\n%s"
-		       dir (buffer-string)))))))
+	      (let ((status (call-process
+			     "make" nil t nil "-C" dir "install" "-o" "epkg-requires"
+			     (format "EPKG_INSTALL='--init-directory=%s'" user-emacs-directory))))
+		(princ (buffer-string))
+		(unless (zerop status)
+		  (error "epkg-requires: make install in %s failed" dir)))))))
       (epkg--write-lock entries))))
 
 (defun epkg-get (pkg rev)
