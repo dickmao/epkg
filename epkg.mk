@@ -21,9 +21,9 @@ epkg-compile: epkg-local-requires
 	$(EPKG_BATCH) \
 	  --eval "(setq byte-compile-error-on-warn t)" \
 	  -f package-initialize \
-	  $(patsubst %,-L %,$(sort $(patsubst %/,%,$(dir $(EPKG_EL))))) \
-	  -f batch-byte-compile $(EPKG_EL); \
-	  (ret=$$? ; rm -f $(EPKG_EL:.el=.elc) && exit $$ret)
+	  $(patsubst %,-L %,$(sort $(patsubst %/,%,$(dir $(EPKG_EL) $(EPKG_TEST_EL))))) \
+	  -f batch-byte-compile $(EPKG_EL) $(EPKG_TEST_EL); \
+	  (ret=$$? ; rm -f $(EPKG_EL:.el=.elc) $(EPKG_TEST_EL:.el=.elc) && exit $$ret)
 
 .PHONY: epkg-local-requires
 epkg-local-requires:
@@ -58,8 +58,9 @@ epkg-get:
 	$(MAKE) epkg-requires EPKG_INSTALL='--init-directory "$(EPKG_DIR)"'
 
 .PHONY: epkg-requires
+# For the intersection of package files (EPKG_FILES) and elisp (EPKG_EL)
 epkg-requires:
-	$(EMACS) -batch $(EPKG_INSTALL) -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")" --eval "(epkg-requires $(patsubst %,\"%\",$(EPKG_EL)))"
+	$(EMACS) -batch $(EPKG_INSTALL) -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")" --eval "(epkg-requires $(patsubst %,\"%\",$(filter $(EPKG_FILES),$(EPKG_EL))))"
 	git add epkg.lock
 
 .PHONY: epkg-test
