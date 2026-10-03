@@ -24,17 +24,17 @@ test: compile
 dist-clean:
 	( \
 	set -e; \
-	PKG_NAME=`$(EMACS) -batch -L . -l epkg-package --eval "(princ (epkg-package-name))"`; \
+	PKG_NAME=`$(EMACS) -batch -L . -l epkg-bootstrap --eval "(princ (epkg-bootstrap-name))"`; \
 	rm -rf $${PKG_NAME}; \
 	rm -rf $${PKG_NAME}.tar; \
 	)
 
 .PHONY: dist
 dist: dist-clean
-	$(EMACS) -batch -L . -l epkg-package -f epkg-package-inception
+	$(EMACS) -batch -L . -l epkg-bootstrap -f epkg-bootstrap-inception
 	( \
 	set -e; \
-	PKG_NAME=`$(EMACS) -batch -L . -l epkg-package --eval "(princ (epkg-package-name))"`; \
+	PKG_NAME=`$(EMACS) -batch -L . -l epkg-bootstrap --eval "(princ (epkg-bootstrap-name))"`; \
 	rsync -R $(ELSRC) $(MKSRC) $${PKG_NAME} && \
 	tar cf $${PKG_NAME}.tar $${PKG_NAME}; \
 	)
@@ -44,7 +44,7 @@ install:
 	$(MAKE) dist
 	( \
 	set -e; \
-	PKG_NAME=`$(EMACS) -batch -L . -l epkg-package --eval "(princ (epkg-package-name))"`; \
+	PKG_NAME=`$(EMACS) -batch -L . -l epkg-bootstrap --eval "(princ (epkg-bootstrap-name))"`; \
 	$(EMACS) --batch -l package \
 	  -f package-initialize \
 	  --eval "(ignore-errors (apply (function package-delete) (alist-get (quote epkg) package-alist)))" \
