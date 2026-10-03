@@ -1,4 +1,4 @@
-;;; epkg.el --- Make-based package manager  -*- lexical-binding: t -*-
+;;; epkg.el --- Make-based build tool  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2026 by dickmao
 ;;
@@ -22,12 +22,16 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Commentary
+
+;; We call the git repository utilizing epkg the "client."
+
 (require 'package)
 (require 'cl-lib)
 (require 'url-parse)
 
 (defgroup epkg nil
-  "Make-based package manager."
+  "Make-based build tool."
   :group 'applications)
 
 (defvar epkg-main)
@@ -56,7 +60,14 @@ To run `package-unpack', you need a -pkg.el."
     (ignore-errors (delete-directory pkg-dir t))
     (make-directory pkg-dir t)
     (copy-file epkg-main (expand-file-name (file-name-nondirectory epkg-main) pkg-dir))
-    (package--make-autoloads-and-stuff pkg-desc pkg-dir)))
+    (package--make-autoloads-and-stuff pkg-desc pkg-dir)
+    ;; Unlike epkg.lock (dependencies only), epkg.installed also
+    ;; contains self, since a commit cannot know its own hash.
+    (epkg--write-lock (cons (list (package-desc-name pkg-desc)
+				  :url (alist-get :url (package-desc-extras pkg-desc))
+				  :sha1 (epkg--sha1 default-directory "HEAD"))
+			    (epkg--lock))
+		      (expand-file-name "epkg.installed" pkg-dir))))
 
 (defun epkg--collect-requires (form &optional reqs)
   (pcase form
@@ -90,7 +101,7 @@ To run `package-unpack', you need a -pkg.el."
 (defun epkg--git (dir &rest args)
   "Trimmed stdout of git ARGS in DIR, or nil on failure."
   (with-temp-buffer
-    (when (zerop (apply #'call-process "git" nil '(t nil) nil "-C" dir args))
+    (when (zerop (apply #'call-process "git" nil '(t nil) nil "-C" (expand-file-name dir) args))
       (string-trim (buffer-string)))))
 
 (defun epkg--read (file)
@@ -103,8 +114,8 @@ To run `package-unpack', you need a -pkg.el."
   "Extant epkg.lock."
   (epkg--read "epkg.lock"))
 
-(defun epkg--write-lock (lock)
-  (with-temp-file "epkg.lock"
+(defun epkg--write-lock (lock &optional file)
+  (with-temp-file (or file "epkg.lock")
     (pp (sort lock (lambda (a b) (string< (car a) (car b))))
 	(current-buffer))))
 
@@ -125,7 +136,7 @@ To run `package-unpack', you need a -pkg.el."
   (or (epkg--git dir "rev-parse" "--verify" "--quiet" (concat rev "^{commit}"))
       (error "epkg: %s lacks %s" dir rev)))
 
-(defun epkg-requires (&rest files)
+(defun epkg--requires (&rest files)
   "Locally clone each epkg-require in FILES.
 Return list of (PKG :url URL :sha1 SHA1), SHA1 being the locked
 commit, else the remote's default branch tip."
@@ -143,7 +154,7 @@ commit, else the remote's default branch tip."
 	    (let ((dir (expand-file-name (symbol-name (car entry)) "epkg"))
 		  (sha1 (plist-get (cdr entry) :sha1)))
 	      (unless (epkg--git dir "checkout" "--quiet" "--detach" sha1)
-		(error "epkg-requires: git checkout %s in %s failed" sha1 dir))))
+		(error "epkg--requires: git checkout %s in %s failed" sha1 dir))))
 	  (mapcar (lambda (req)
 		    (let* ((url (if (url-type (url-generic-parse-url (cdr req)))
 				    (cdr req)
@@ -158,21 +169,43 @@ commit, else the remote's default branch tip."
 						    "origin/HEAD")))))
 		  reqs))))
 
+(defun epkg--installed-sha1 (pkg)
+  "Self-locked sha1 of PKG's active installation."
+  (when-let* ((desc (car (alist-get pkg package-alist))))
+    (plist-get (alist-get pkg (epkg--read (expand-file-name
+					   "epkg.installed" (package-desc-dir desc))))
+	       :sha1)))
+
 (defun epkg--latest (pkg dir sha1s)
   (let ((best (car sha1s)))
     (dolist (sha1 (cdr sha1s) best)
       (cond ((epkg--git dir "merge-base" "--is-ancestor" best sha1)
 	     (setq best sha1))
 	    ((epkg--git dir "merge-base" "--is-ancestor" sha1 best))
-	    (t (error "epkg-sync: %s %s and %s diverge" pkg best sha1))))))
+	    (t (error "epkg-requires: %s %s and %s diverge" pkg best sha1))))))
 
-(defun epkg-sync (&rest elsrc)
+(defun epkg--install-order (pkgs)
+  "PKGS ordered so each follows those in its epkg/PKG/epkg.lock."
+  (let (order visiting)
+    (cl-labels ((visit (pkg)
+		  (unless (or (memq pkg order) (memq pkg visiting))
+		    (push pkg visiting)
+		    (mapc #'visit (mapcar #'car (epkg--read
+						 (expand-file-name
+						  "epkg.lock"
+						  (expand-file-name (symbol-name pkg) "epkg")))))
+		    (push pkg order))))
+      (mapc #'visit pkgs))
+    (nreverse order)))
+
+(defun epkg-requires (&rest elsrc)
   "Merge all epkg/clone/epkg.lock to epkg.lock.
 Assume epkg/clone/epkg.lock describes a transitive closure for all of
 clone's dependencies, so that we don't need to recursively take
-`epkg-requires'."
+`epkg--requires'."
+  (package-load-all-descriptors)
   (let* ((lock (epkg--lock))
-	 (requires* (apply #'epkg-requires elsrc))
+	 (requires* (apply #'epkg--requires elsrc))
 	 (requires requires*)
 	 urls sha1s)
     ;; Cumulate each dependency's epkg.lock
@@ -181,42 +214,53 @@ clone's dependencies, so that we don't need to recursively take
 			       "epkg.lock"
 			       (expand-file-name (symbol-name (car entry)) "epkg")))))
 	(setq requires (append requires more))))
+    ;; Build sha1s candidates for each PKG
     (dolist (entry requires)
       ;; (PKG :url URL :sha1 SHA1)
       (let ((pkg (car entry))
 	    (url (plist-get (cdr entry) :url)))
 	(when-let* ((prev (alist-get (car entry) urls)))
 	  (unless (equal url prev)
-	    (error "epkg-sync: %s is both %s and %s" pkg prev url)))
+	    (error "epkg-requires: %s is both %s and %s" pkg prev url)))
 	(setf (alist-get pkg urls) url)
 	(cl-pushnew (plist-get (cdr entry) :sha1) (alist-get pkg sha1s) :test #'equal)))
-    (epkg--write-lock
-     (mapcar
-      (lambda (u)
-	(let* ((pkg (car u))
-	       (url (cdr u))
-	       (dir (epkg--clone-require pkg url))
-	       (locked (alist-get pkg lock))
-	       (candidates (alist-get pkg sha1s))
-	       best)
-	  ;; URLS won't reflect epkg.lock since we're regenerating it
-	  ;; from scratch, but heed its lower bound.
-	  (when (equal url (plist-get locked :url))
-	    (cl-pushnew (plist-get locked :sha1) candidates :test #'equal))
-	  (setq best (epkg--latest pkg dir (delete-dups
-					    (mapcar (lambda (sha1) (epkg--sha1 dir sha1))
-						    candidates))))
-	  (unless (epkg--git dir "checkout" "--quiet" "--detach" best)
-	    (error "epkg-sync: git checkout %s in %s failed" best dir))
-	  (with-temp-buffer
-	    (unless (zerop (call-process
-			    "make" nil t nil "-C" dir "install"
-			    (format "EPKG_INSTALL=--init-directory \"%s\"" (epkg-dir))))
-	      (error "epkg-sync: make epkg-install in %s failed\n%s" dir (buffer-string))))
-	  (list pkg :url url :sha1 best)))
-      urls))
-
-    ))
+    ;; Latest of sha1s
+    (let ((entries
+	   (mapcar
+	    (lambda (u)
+	      (cl-destructuring-bind (pkg . url) u
+		(let ((dir (epkg--clone-require pkg url))
+		      (locked (alist-get pkg lock))
+		      (candidates (alist-get pkg sha1s))
+		      best)
+		  ;; CANDIDATES don't yet reflect extant epkg.lock; tack
+		  ;; them on here
+		  (when (equal url (plist-get locked :url))
+		    (cl-pushnew (plist-get locked :sha1) candidates :test #'equal))
+		  (setq best (epkg--latest pkg dir (delete-dups
+						    (mapcar (lambda (sha1) (epkg--sha1 dir sha1))
+							    candidates))))
+		  (unless (epkg--git dir "checkout" "--quiet" "--detach" best)
+		    (error "epkg-requires: git checkout %s in %s failed" best dir))
+		  (list pkg :url url :sha1 best))))
+	    urls)))
+      ;; ENTRIES is the transitive closure, so -o skips each
+      ;; dependency's own epkg-requires.
+      (dolist (pkg (epkg--install-order (mapcar #'car entries)))
+	(let ((dir (expand-file-name (symbol-name pkg) "epkg"))
+	      (best (plist-get (alist-get pkg entries) :sha1)))
+	  (unless (when-let* ((installed (epkg--installed-sha1 pkg)))
+		    (equal installed
+			   (or (ignore-errors (epkg--latest pkg dir (list installed best)))
+			       (progn (epkg--git dir "fetch" "--quiet" "--tags" "origin")
+				      (epkg--latest pkg dir (list installed best))))))
+	    (with-temp-buffer
+	      (unless (zerop (call-process
+			      "make" nil t nil "-C" dir "install" "-o" "epkg-requires"
+			      (format "EPKG_INSTALL='--init-directory=%s'" user-emacs-directory)))
+		(error "epkg-requires: make epkg-install in %s failed\n%s"
+		       dir (buffer-string)))))))
+      (epkg--write-lock entries))))
 
 (defun epkg-get (pkg rev)
   "Fetch PKG and lock it at REV.
@@ -237,11 +281,23 @@ A branch REV means the remote's branch."
       (setf (alist-get pkg lock) (list :url url :sha1 sha1)))
     (epkg--write-lock lock)))
 
-(defun epkg-old-requires ()
+(defun epkg-install ()
+  (package-initialize)
+  (ignore-errors (apply #'package-delete (alist-get (package-desc-name (epkg-desc)) package-alist)))
+  (package-refresh-contents nil)
+  (package-install-file (expand-file-name (concat (epkg-name-version) ".tar")
+					  (epkg-dir))))
+
+(defun epkg-copy-mk ()
+  "Copy bundled epkg.mk into `default-directory'."
+  (copy-file (expand-file-name "epkg.mk" (file-name-directory (locate-library "epkg")))
+	     (expand-file-name "epkg.mk") t))
+
+(defun epkg-package-requires-met ()
   "Non-nil if packages under `epkg-dir' satisfy Package-Requires of `epkg-main'.
 Write Package-Requires of `epkg-main' to epkg/old-requires if changed."
   (let ((reqs (package-desc-reqs (epkg-desc)))
-	(file (expand-file-name "epkg/old-requires"))
+	(file (expand-file-name "epkg/package-requires"))
 	(package-user-dir (expand-file-name "elpa" (epkg-dir)))
 	package-directory-list package-alist)
     (when (or (not (file-exists-p file))
@@ -254,11 +310,6 @@ Write Package-Requires of `epkg-main' to epkg/old-requires if changed."
     (package-load-all-descriptors)
     (seq-every-p (lambda (req) (package-installed-p (car req) (cadr req)))
 		 (package-desc-reqs (epkg-desc)))))
-
-(defun epkg-copy-mk ()
-  "Copy bundled epkg.mk into `default-directory'."
-  (copy-file (expand-file-name "epkg.mk" (file-name-directory (locate-library "epkg")))
-	     (expand-file-name "epkg.mk") t))
 
 (provide 'epkg)
 
