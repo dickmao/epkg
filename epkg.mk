@@ -18,7 +18,7 @@ EPKG_NAME = $(call epkg-lazy,EPKG_NAME,$(shell $(EPKG_BATCH) --eval "(princ (epk
 EPKG_NAME_VERSION = $(call epkg-lazy,EPKG_NAME_VERSION,$(shell $(EPKG_BATCH) --eval "(princ (epkg-name-version))"))
 
 .PHONY: epkg-compile
-epkg-compile: epkg-package-requires
+epkg-compile: epkg-package-requires epkg-requires
 	$(EPKG_BATCH) \
 	  --eval "(setq byte-compile-error-on-warn t)" \
 	  -f package-initialize \
@@ -63,7 +63,7 @@ epkg-requires:
 	git add epkg.lock
 
 .PHONY: epkg-test
-epkg-test: epkg-local-install
+epkg-test: epkg-package-requires epkg-requires
 	$(EPKG_BATCH) -f package-initialize \
 	  $(patsubst %,-L %,$(sort $(patsubst %/,%,$(dir $(EPKG_EL) $(EPKG_TEST_EL))))) \
 	  $(patsubst %.el,-l %,$(notdir $(EPKG_TEST_EL))) \
