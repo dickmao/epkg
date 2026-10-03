@@ -53,9 +53,6 @@
 To run `package-unpack', you need a -pkg.el."
   (let ((pkg-desc (epkg-desc))
 	(pkg-dir (expand-file-name (epkg-name-version) (epkg-dir))))
-    (ignore-errors (delete-directory pkg-dir t))
-    (make-directory pkg-dir t)
-    (copy-file epkg-main (expand-file-name (file-name-nondirectory epkg-main) pkg-dir))
     (package--make-autoloads-and-stuff pkg-desc pkg-dir)
     ;; We need a separate, untracked (via git) epkg.installed distinct
     ;; from epkg.lock to prepend the client's commit hash since
