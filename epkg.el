@@ -30,10 +30,6 @@
 (require 'cl-lib)
 (require 'url-parse)
 
-(defgroup epkg nil
-  "Make-based build tool."
-  :group 'applications)
-
 (defvar epkg-main)
 
 (defun epkg-desc ()
@@ -84,19 +80,6 @@ To run `package-unpack', you need a -pkg.el."
 (defmacro epkg-require (sym _url)
   "This has to effectively `require' SYM."
   `(require ,sym))
-
-(defun epkg-prune (reqs)
-  "Delete packages in `epkg-dir' unneeded by REQS or Package-Requires."
-  (let ((package-user-dir (expand-file-name "elpa" (epkg-dir)))
-	package-directory-list package-alist)
-    (package-load-all-descriptors)
-    (let ((keep (package--get-deps
-		 (append (mapcar #'car reqs)
-			 (mapcar #'car (package-desc-reqs (epkg-desc)))))))
-      (dolist (pkg package-alist)
-	(unless (memq (car pkg) keep)
-	  (dolist (desc (cdr pkg))
-	    (delete-directory (package-desc-dir desc) t)))))))
 
 (defun epkg--git (dir &rest args)
   "Trimmed stdout of git ARGS in DIR, or nil on failure."
@@ -295,19 +278,8 @@ A branch REV means the remote's branch."
 	     (expand-file-name "epkg.mk") t))
 
 (defun epkg-package-requires-met ()
-  "Non-nil if packages under `epkg-dir' satisfy Package-Requires of `epkg-main'.
-Write Package-Requires of `epkg-main' to epkg/old-requires if changed."
-  (let ((reqs (package-desc-reqs (epkg-desc)))
-	(file (expand-file-name "epkg/package-requires"))
-	(package-user-dir (expand-file-name "elpa" (epkg-dir)))
-	package-directory-list package-alist)
-    (when (or (not (file-exists-p file))
-	      (not (equal reqs (with-temp-buffer
-				 (insert-file-contents file)
-				 (ignore-errors (read (current-buffer)))))))
-      (make-directory (file-name-directory file) t)
-      (with-temp-file file
-	(prin1 reqs (current-buffer))))
+  "Non-nil if packages under `epkg-dir' satisfy Package-Requires of `epkg-main'."
+  (let (package-directory-list package-alist)
     (package-load-all-descriptors)
     (seq-every-p (lambda (req) (package-installed-p (car req) (cadr req)))
 		 (package-desc-reqs (epkg-desc)))))

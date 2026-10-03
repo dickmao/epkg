@@ -14,7 +14,6 @@ EPKG_INSTALL ?=
 EPKG_EPKG = $(call epkg-lazy,EPKG_EPKG,$(shell $(EMACS) -batch -l package -f package-initialize --eval "(princ (locate-library \"epkg\"))"))
 EPKG_DIR = $(call epkg-lazy,EPKG_DIR,$(shell $(EMACS) -batch -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")" --eval "(princ (epkg-dir))"))
 EPKG_BATCH = $(EMACS) -batch --init-directory "$(EPKG_DIR)" -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")"
-EPKG_NAME = $(call epkg-lazy,EPKG_NAME,$(shell $(EPKG_BATCH) --eval "(princ (epkg-name))"))
 EPKG_NAME_VERSION = $(call epkg-lazy,EPKG_NAME_VERSION,$(shell $(EPKG_BATCH) --eval "(princ (epkg-name-version))"))
 
 .PHONY: epkg-compile
@@ -27,14 +26,10 @@ epkg-compile: epkg-local-requires
 	  (ret=$$? ; rm -f $(EPKG_EL:.el=.elc) && exit $$ret)
 
 .PHONY: epkg-local-requires
-epkg-local-requires: epkg/package-requires
-	$(MAKE) epkg-requires EPKG_INSTALL='--init-directory "$(EPKG_DIR)"'
-
-epkg/package-requires: FORCE
-	$(EPKG_BATCH) --eval "(kill-emacs (if (epkg-package-requires-met) 0 1))" \
-	  || $(MAKE) epkg-local-install
-
-FORCE:
+epkg-local-requires:
+	if $(EPKG_BATCH) --eval "(kill-emacs (if (epkg-package-requires-met) 0 1))"; \
+	  then $(MAKE) epkg-requires EPKG_INSTALL='--init-directory "$(EPKG_DIR)"'; \
+	  else $(MAKE) epkg-local-install; fi
 
 .PHONY: epkg-local-install
 epkg-local-install:
