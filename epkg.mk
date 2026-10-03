@@ -47,8 +47,8 @@ epkg-dist-clean:
 
 .PHONY: epkg-dist
 epkg-dist: epkg-dist-clean
-	$(EPKG_BATCH) -f epkg-inception
 	rsync -R $(EPKG_FILES) $(EPKG_DIR)/$(EPKG_NAME_VERSION)
+	$(EPKG_BATCH) -f epkg-inception
 	tar -C $(EPKG_DIR) -cf $(EPKG_DIR)/$(EPKG_NAME_VERSION).tar $(EPKG_NAME_VERSION)
 
 .PHONY: epkg-get

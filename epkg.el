@@ -57,8 +57,9 @@ To run `package-unpack', you need a -pkg.el."
     (make-directory pkg-dir t)
     (copy-file epkg-main (expand-file-name (file-name-nondirectory epkg-main) pkg-dir))
     (package--make-autoloads-and-stuff pkg-desc pkg-dir)
-    ;; Unlike epkg.lock (dependencies only), epkg.installed also
-    ;; contains self, since a commit cannot know its own hash.
+    ;; We need a separate, untracked (via git) epkg.installed distinct
+    ;; from epkg.lock to prepend the client's commit hash since
+    ;; epkg.lock cannot know this before committing itself
     (epkg--write-lock (cons (list (package-desc-name pkg-desc)
 				  :url (alist-get :url (package-desc-extras pkg-desc))
 				  :sha1 (epkg--sha1 default-directory "HEAD"))
