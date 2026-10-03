@@ -18,7 +18,7 @@ EPKG_NAME = $(call epkg-lazy,EPKG_NAME,$(shell $(EPKG_BATCH) --eval "(princ (epk
 EPKG_NAME_VERSION = $(call epkg-lazy,EPKG_NAME_VERSION,$(shell $(EPKG_BATCH) --eval "(princ (epkg-name-version))"))
 
 .PHONY: epkg-compile
-epkg-compile: epkg-package-requires epkg-requires
+epkg-compile: epkg-local-requires
 	$(EPKG_BATCH) \
 	  --eval "(setq byte-compile-error-on-warn t)" \
 	  -f package-initialize \
@@ -26,10 +26,15 @@ epkg-compile: epkg-package-requires epkg-requires
 	  -f batch-byte-compile $(EPKG_EL); \
 	  (ret=$$? ; rm -f $(EPKG_EL:.el=.elc) && exit $$ret)
 
-.PHONY: epkg-package-requires
-epkg-package-requires:
+.PHONY: epkg-local-requires
+epkg-local-requires: epkg/package-requires
+	$(MAKE) epkg-requires EPKG_INSTALL='--init-directory "$(EPKG_DIR)"'
+
+epkg/package-requires: FORCE
 	$(EPKG_BATCH) --eval "(kill-emacs (if (epkg-package-requires-met) 0 1))" \
 	  || $(MAKE) epkg-local-install
+
+FORCE:
 
 .PHONY: epkg-local-install
 epkg-local-install:
@@ -63,7 +68,7 @@ epkg-requires:
 	git add epkg.lock
 
 .PHONY: epkg-test
-epkg-test: epkg-package-requires epkg-requires
+epkg-test: epkg-local-requires
 	$(EPKG_BATCH) -f package-initialize \
 	  $(patsubst %,-L %,$(sort $(patsubst %/,%,$(dir $(EPKG_EL) $(EPKG_TEST_EL))))) \
 	  $(patsubst %.el,-l %,$(notdir $(EPKG_TEST_EL))) \
