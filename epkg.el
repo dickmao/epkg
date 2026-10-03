@@ -244,8 +244,8 @@ clone's dependencies, so that we don't need to recursively take
 		    (error "epkg-requires: git checkout %s in %s failed" best dir))
 		  (list pkg :url url :sha1 best))))
 	    urls)))
-      ;; ENTRIES is the transitive closure, so -o skips each
-      ;; dependency's own epkg-requires.
+      ;; ENTRIES is the transitive closure, so `-o epkg-requires` on
+      ;; each dependency avoids repeat work.
       (dolist (pkg (epkg--install-order (mapcar #'car entries)))
 	(let ((dir (expand-file-name (symbol-name pkg) "epkg"))
 	      (best (plist-get (alist-get pkg entries) :sha1)))
