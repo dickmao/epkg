@@ -1,10 +1,10 @@
 ;;; epkg-bootstrap.el --- buzz buzz -*- lexical-binding:t -*-
 
 (require 'package)
-(require 'project)
 
 (defsubst epkg-bootstrap-where ()
-  (directory-file-name (expand-file-name (project-root (project-current)))))
+  (directory-file-name (expand-file-name (locate-dominating-file
+					  default-directory "epkg.el"))))
 
 (defsubst epkg-bootstrap-desc ()
   (with-temp-buffer
