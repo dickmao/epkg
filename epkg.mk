@@ -48,7 +48,7 @@ epkg-dist-clean:
 .PHONY: epkg-dist
 epkg-dist: epkg-dist-clean
 	mkdir -p $(EPKG_DIR)/$(EPKG_NAME_VERSION)
-	rsync -R $(filter-out $(EPKG_EL),$(EPKG_FILES)) $(EPKG_DIR)/$(EPKG_NAME_VERSION)/
+	$(if $(filter-out $(EPKG_EL),$(EPKG_FILES)),rsync -R $(filter-out $(EPKG_EL),$(EPKG_FILES)) $(EPKG_DIR)/$(EPKG_NAME_VERSION)/)
 	rsync $(EPKG_EL) $(EPKG_DIR)/$(EPKG_NAME_VERSION)/
 	$(EPKG_BATCH) -f epkg-inception
 	tar -C $(EPKG_DIR) -cf $(EPKG_DIR)/$(EPKG_NAME_VERSION).tar $(EPKG_NAME_VERSION)
