@@ -5,8 +5,7 @@ epkg.mk:
 SHELL := /bin/bash
 EMACS ?= emacs
 
-EPKG_EL := lisp/foo*.el
-EPKG_FILES := foo-module.so $(EPKG_EL) scripts/*.py
+EPKG_FILES := foo-module.so lisp/foo*.el scripts/*.py
 EPKG_MAIN := lisp/foo.el
 EPKG_TEST_EL := tests/test*.el
 

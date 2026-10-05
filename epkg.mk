@@ -6,11 +6,11 @@ EMACS ?= emacs
 epkg-lazy = $(eval $(1) := $(2))$($(1))
 
 EPKG_FILES ?= $(call epkg-lazy,EPKG_FILES,$(shell git ls-files *.el lisp/*.el))
-EPKG_EL ?= $(filter %.el,$(EPKG_FILES))
 EPKG_MAIN ?= ${call epkg-lazy,EPKG_MAIN,${firstword ${shell grep -l "(provide " $(EPKG_EL)}}}
 EPKG_TEST_EL ?= $(call epkg-lazy,EPKG_TEST_EL,$(shell git ls-files test*/*.el))
 EPKG_INSTALL ?=
 
+EPKG_EL = $(call epkg-lazy,EPKG_EL,$(filter %.el,$(EPKG_FILES)))
 EPKG_EPKG = $(call epkg-lazy,EPKG_EPKG,$(shell $(EMACS) -batch -l package --eval "(package-initialize :no-activate)" --eval "(princ (file-name-as-directory (package-desc-dir (car (alist-get 'epkg package-alist)))))"))
 EPKG_DIR = $(call epkg-lazy,EPKG_DIR,$(shell $(EMACS) -batch -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")" --eval "(princ (epkg-dir))"))
 EPKG_BATCH = $(EMACS) -batch --init-directory "$(EPKG_DIR)" -L "$(dir $(EPKG_EPKG))" -l epkg --eval "(defvar epkg-main \"$(EPKG_MAIN)\")"

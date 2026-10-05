@@ -16,10 +16,9 @@ include epkg.mk
 epkg.mk:
 	emacs --batch -l package -f package-initialize -l epkg -f epkg-copy-mk
 
-- Four make variables must be defined:
+- Three make variables must be defined:
 
   EPKG_FILES are relative paths to all files to be installed.
-  EPKG_EL are a subset of EPKG_FILES written in elisp.
   EPKG_MAIN is the elisp file containing the package headers.
   EPKG_TEST_EL are relative paths to ert tests.
 
