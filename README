@@ -1,0 +1,18 @@
+  ┌───────────────┬───────────────────────────┬──────────────────────────────────┐
+  │ Subrole       │ Status Quo                │ Epkg                             │
+  ├───────────────┼───────────────────────────┼──────────────────────────────────┤
+  │ Sourcing      │ elpa, nongnu-elpa,        │ git forges, e.g., GitHub         │
+  │               │ elpa-devel, nongnu-devel, │                                  │
+  │               │ melpa, melpa-stable       │                                  │
+  ├───────────────┼───────────────────────────┼──────────────────────────────────┤
+  │ Versioning    │ unserious                 │ git commit hashes                │
+  ├───────────────┼───────────────────────────┼──────────────────────────────────┤
+  │ Naming        │ first come, first taken   │ url paths, e.g.,                 │
+  │               │                           │ github.com/dickmao/emacs-ghostty │
+  ├───────────────┼───────────────────────────┼──────────────────────────────────┤
+  │ Sandbox &     │ community staleware:      │ make target                      │
+  │ test          │ Eldev, Cask               │                                  │
+  ├───────────────┼───────────────────────────┼──────────────────────────────────┤
+  │ Build         │ bespoke user elisp upon   │ make target                      │
+  │               │ first invocation          │                                  │
+  └───────────────┴───────────────────────────┴──────────────────────────────────┘
