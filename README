@@ -19,7 +19,7 @@ epkg.mk:
 - Three make variables must be defined:
 
   EPKG_FILES are relative paths to all files to be installed.
-  EPKG_MAIN is the elisp file containing the package headers.
+  EPKG_MAIN is the relative path containing the package headers.
   EPKG_TEST_EL are relative paths to ert tests.
 
 - A make target named "install" must be defined.
@@ -39,8 +39,8 @@ BRIEF EXEGESIS ON EPKG.LOCK
 epkg.lock is automatically maintained to reflect the epkg-made
 dependencies you *actually* used for testing.  It is automatically git
 added to your repository.  If two subpackages lock to different commit
-hashes of a common dependency, and one hash is the descendant of the
-other, then the former gets locked.  If the hashes are from different
+hashes of a common dependency, and one hash is the ancestor of the
+other, then the latter gets locked.  If the hashes are from different
 branches, then error.
 
 The default commit of a dependency is the default branch tip.  To
