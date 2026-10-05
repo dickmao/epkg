@@ -1,0 +1,26 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/checkout@v4
+      with:
+        repository: dickmao/epkg
+        path: epkg
+
+    - uses: purcell/setup-emacs@master
+      with:
+        version: 29.4
+
+    - name: epkg
+      run: make -C epkg install
+
+    - name: test
+      run: |
+        make test
+        make install

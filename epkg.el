@@ -261,6 +261,8 @@ A branch REV means the remote's branch."
       (unless (epkg--git dir "checkout" "--quiet" "--detach" sha1)
 	(error "epkg-get: git checkout %s in %s failed" sha1 dir))
       (setf (alist-get pkg lock) (list :url url :sha1 sha1)))
+    (package-initialize :no-activate)
+    (apply #'package-delete (alist-get pkg package-alist))
     (epkg--write-lock lock)))
 
 (defun epkg-install ()
